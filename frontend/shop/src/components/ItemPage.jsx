@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useTheme } from ".././ThemeContext.jsx";
-import { BasketContext } from "../App.jsx"; // Import BasketContext
 import axios from "axios";
 import { StarIcon } from "@heroicons/react/24/outline";
 import { Radio, RadioGroup } from "@headlessui/react";
@@ -35,7 +34,6 @@ const sizes = [
 
 function ItemPage() {
   const { theme } = useTheme();
-  const { setIsBasket } = useContext(BasketContext);
   const [products, setProducts] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);

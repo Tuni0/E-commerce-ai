@@ -1,33 +1,26 @@
 import React, { useState, useEffect, createContext } from "react";
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar.jsx";
-import SignInForm from "./components/SignInForm.jsx";
-import SignUpForm from "./components/SignUpForm.jsx";
-import Skills from "./components/Products.jsx";
+import ItemPage from "./components/ItemPage.jsx";
 import "./App.css";
-import axios from "axios";
-import RouteGuard from "./components/RouteGuard.jsx";
 import Products from "./components/Products.jsx";
 import Contact from "./components/Contact.jsx";
-import ItemPage from "./components/ItemPage.jsx";
-import Basket from "./components/Basket.jsx";
-import Payment from "./components/Payment.jsx";
-import { API_URL } from "./settings";
-import PaymentCancel from "./components/PaymentCancel.jsx";
-import Favourites from "./components/Favourites.jsx";
 import { ThemeProvider } from "./ThemeContext"; // corrected import path
+import { ProductsProvider } from "./components/ProductsContext.jsx";
+import SignInForm from "./components/SignInForm.jsx";
+import SignUpForm from "./components/SignUpForm.jsx";
+import axios from "axios";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const UserLoginContext = createContext({
   user: null,
   setUser: () => {},
 });
-export const BasketContext = createContext();
 
 axios.defaults.withCredentials = true;
 
 function App() {
   const [user, setUser] = useState(null);
-  const [isBasket, setIsBasket] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -54,7 +47,7 @@ function App() {
   return (
     <ThemeProvider>
       <UserLoginContext.Provider value={{ user, setUser }}>
-        <BasketContext.Provider value={{ isBasket, setIsBasket }}>
+        <ProductsProvider>
           <div className="w-full mx-0 px-0">
             <Routes>
               <Route
@@ -78,6 +71,18 @@ function App() {
                 }
               />
               <Route
+                path="/"
+                exact
+                element={
+                  <>
+                    <Navbar />
+
+                    <Products />
+                    <Contact />
+                  </>
+                }
+              />
+              <Route
                 path="/products/*"
                 exact
                 element={
@@ -87,57 +92,9 @@ function App() {
                   </>
                 }
               />
-              <Route
-                path="/basket"
-                exact
-                element={
-                  <>
-                    <Navbar />
-                    <Basket />
-                  </>
-                }
-              />
-              <Route
-                path="/payment"
-                exact
-                element={
-                  <>
-                    <Navbar />
-                    <Payment />
-                  </>
-                }
-              />
-
-              <Route
-                path="/"
-                exact
-                element={
-                  <>
-                    <Navbar />
-                    <RouteGuard user={user}>
-                      <Skills />
-                    </RouteGuard>
-
-                    <Products />
-
-                    <Contact />
-                  </>
-                }
-              />
-              <Route path="/payment-cancel" element={<PaymentCancel />} />
-              <Route
-                path="/favourites"
-                element={
-                  <>
-                    <Navbar />
-                    <Favourites />
-                  </>
-                }
-              />
             </Routes>
-            {/*  <SwaggerDocs /> */}
           </div>
-        </BasketContext.Provider>
+        </ProductsProvider>
       </UserLoginContext.Provider>
     </ThemeProvider>
   );

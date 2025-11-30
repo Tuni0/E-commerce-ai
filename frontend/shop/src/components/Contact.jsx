@@ -33,16 +33,16 @@ function Contact() {
           <div className=" mb-8 mt-12">
             <div className="flex flex-row">
               <span className="pr-4 text-gray-900 dark:text-white ">
-                Made with love by Wiktor Mazepa{" "}
+                Made with love by Pulse Team{" "}
               </span>
               <BsHeartFill className="text-2xl text-red-500" />
             </div>
             <div className="text-center pt-12">
               <a
-                href="mailto:wiktor.mazepa@gmail.com "
+                href="mailto:pulseteam@example.com"
                 className="text-1xl text-gray-900 dark:text-white "
               >
-                wiktor.mazepa@gmail.com
+                pulseteam@example.com
               </a>
             </div>
           </div>

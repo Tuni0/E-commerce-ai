@@ -5,7 +5,7 @@ import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import axios from "axios";
 import { UserLoginContext } from "../App.jsx";
 import React from "react";
-import { API_URL } from "../settings";
+import {API_URL} from '../settings'
 
 function Login() {
   const { user } = useContext(UserLoginContext); // Ensure setUser is defined
