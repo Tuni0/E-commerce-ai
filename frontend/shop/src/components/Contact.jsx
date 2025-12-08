@@ -1,7 +1,4 @@
-import { BsGithub } from "react-icons/bs";
-import { BsLinkedin } from "react-icons/bs";
-import { BsHeartFill } from "react-icons/bs";
-import React from "react";
+import { BsGithub, BsLinkedin, BsHeartFill } from "react-icons/bs";
 
 const sections = [
   {
@@ -33,16 +30,16 @@ function Contact() {
           <div className=" mb-8 mt-12">
             <div className="flex flex-row">
               <span className="pr-4 text-gray-900 dark:text-white ">
-                Made with love by Pulse Team{" "}
+                Made with love by Wiktor Mazepa{" "}
               </span>
               <BsHeartFill className="text-2xl text-red-500" />
             </div>
             <div className="text-center pt-12">
               <a
-                href="mailto:pulseteam@example.com"
+                href="mailto:wiktor.mazepa@gmail.com "
                 className="text-1xl text-gray-900 dark:text-white "
               >
-                pulseteam@example.com
+                wiktor.mazepa@gmail.com
               </a>
             </div>
           </div>

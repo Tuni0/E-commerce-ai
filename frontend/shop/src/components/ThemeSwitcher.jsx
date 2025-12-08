@@ -1,6 +1,7 @@
-import { useTheme } from "./../ThemeContext.jsx";
 import { BsFillMoonStarsFill, BsSunFill } from "react-icons/bs";
 import { motion } from "framer-motion";
+
+import { useTheme } from "./../ThemeContext.jsx";
 
 const ThemeSwitcher = () => {
   const { theme, toggleTheme } = useTheme();

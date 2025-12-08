@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useContext } from "react";
-import { useTheme } from ".././ThemeContext.jsx";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { StarIcon } from "@heroicons/react/24/outline";
 import { Radio, RadioGroup } from "@headlessui/react";
+import { useContext } from "react";
+import { BasketContext } from "../App.jsx";
+import { useTheme } from ".././ThemeContext.jsx";
 import { API_URL } from "../settings";
 
 const reviews = { href: "#", average: 4, totalCount: 117 };
@@ -23,20 +25,20 @@ const colors = [
 ];
 
 const sizes = [
-  { name: "xxs", inStock: false },
-  { name: "xs", inStock: true },
-  { name: "s", inStock: true },
-  { name: "m", inStock: true },
-  { name: "l", inStock: true },
-  { name: "xxl", inStock: true },
-  { name: "xxxl", inStock: true },
+  { name: "1 GB", inStock: false },
+  { name: "2 GB", inStock: true },
+  { name: "8 GB", inStock: true },
+  { name: "16 GB", inStock: true },
+  { name: "32 GB", inStock: true },
+  { name: "64 GB", inStock: true },
+  { name: "128 GB", inStock: true },
 ];
 
 function ItemPage() {
-  const { theme } = useTheme();
   const [products, setProducts] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
+  const { setIsBasket } = useContext(BasketContext);
 
   useEffect(() => {
     const number = window.location.pathname.split("/")[2];

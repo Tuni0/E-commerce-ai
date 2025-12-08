@@ -1,6 +1,5 @@
 import { useState } from "react";
 import axios from "axios";
-import React from "react";
 import { useNavigate } from "react-router-dom";
 
 import { API_URL } from "../settings";
@@ -9,8 +8,8 @@ function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userName, setUserName] = useState("");
-  const [surname, setSurname] = useState("surname");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [surname] = useState("surname");
+  const [isAdmin] = useState(false);
   axios.defaults.withCredentials = true;
   const navigate = useNavigate();
 

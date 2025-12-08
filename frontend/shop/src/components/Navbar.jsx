@@ -1,27 +1,73 @@
-import React, { useEffect, useContext, useState } from "react";
+import { useContext, useState } from "react";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
-import ThemeSwitcher from "./ThemeSwitcher.jsx";
 import { motion } from "framer-motion";
-import { BsBasket, BsHeart, BsCreditCard } from "react-icons/bs";
 import { useNavigate } from "react-router-dom";
+import { BsBasket } from "react-icons/bs";
+import axios from "axios";
+import { API_URL } from "../settings";
+import { useEffect } from "react";
 import { UserLoginContext } from "../App.jsx";
+import { BasketContext } from "../App.jsx";
+import ThemeSwitcher from "./ThemeSwitcher.jsx";
 import Login from "./Login.jsx";
 
 function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useContext(UserLoginContext); // Ensure setUser is defined
 
+  const { isBasket, setIsBasket } = useContext(BasketContext); // Use BasketContext
+  const [num, setNum] = useState(0);
   const navigate = useNavigate();
 
   const handleHome = (e) => {
     e.preventDefault();
 
     navigate("/");
+    ``;
+  };
+  const handleBasket = (e) => {
+    e.preventDefault();
+    navigate("/basket");
   };
 
+  useEffect(() => {
+    if (isBasket) {
+      axios
+        .get(`${API_URL}/basketItems`, { withCredentials: true })
+        .then((result) => {
+          const total = result.data.reduce(
+            (acc, item) => acc + item.quantity,
+            0
+          );
+          setNum(total);
+        })
+        .catch((err) => console.log("Error:", err));
+
+      setIsBasket(false);
+    }
+  }, [isBasket]);
+
+  useEffect(() => {
+    if (user) {
+      axios
+        .get(`${API_URL}/basketItems`)
+        .then((result) => {
+          console.log(result.data[0]);
+          const total = result.data.reduce(
+            (acc, item) => acc + item.quantity,
+            0
+          );
+          setNum(total);
+        })
+        .catch((err) => {
+          console.log("Error:", err);
+        });
+    }
+  }, [user]);
+
   return (
-    <div className="sticky top-4 z-10 w-full bg-gray-100/70 dark:bg-neutral-800/70 backdrop-blur-md rounded-3xl mx-auto w-fit shadow-lg border border-white/20">
+    <div className="sticky top-4 z-10 w-full bg-gray-100/70 dark:bg-neutral-800/70 backdrop-blur-md rounded-3xl mx-auto shadow-lg border border-white/20">
       <header>
         <nav
           aria-label="Global"
@@ -66,6 +112,28 @@ function Navbar() {
           {/* Desktop ThemeSwitcher */}
           <div className="hidden lg:flex lg:justify-end pr-4">
             <ThemeSwitcher />
+          </div>
+          <div className="hidden lg:flex lg:justify-end ">
+            <motion.button
+              onClick={(e) => handleBasket(e)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+              className="-mx-3 relative block rounded-lg px-3 py-2 text-base/7 font-semibold text-gray-900 hover:bg-gray-200 dark:text-white dark:hover:bg-zinc-800 font-abeezee "
+            >
+              <div className="flex flex-row items-center  ">
+                <span className="pr-4  ">Basket </span>
+                <BsBasket className="text-xl   " />
+                {num != 0 && <p className="pl-2">({num})</p>}
+              </div>
+              {/* Ping Dot */}
+              {num != 0 && (
+                <span className="absolute top-0 right-0 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+              )}
+            </motion.button>
           </div>
         </nav>
 
