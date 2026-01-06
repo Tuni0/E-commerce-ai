@@ -721,6 +721,19 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
         allowed_countries: ["US", "PL"],
       },
 
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: {
+              amount: 0,
+              currency: "usd",
+            },
+            display_name: "Free shipping",
+          },
+        },
+      ],
+
       billing_address_collection: "required",
 
       success_url: "https://e-commerce-ai-olive.vercel.app/success",
