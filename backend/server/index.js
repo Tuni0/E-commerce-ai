@@ -20,6 +20,7 @@ app.post(
     const sig = req.headers["stripe-signature"];
 
     let event;
+
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
@@ -27,57 +28,66 @@ app.post(
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } catch (err) {
-      console.error("❌ Webhook signature verification failed:", err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+      console.error("❌ Webhook signature error:", err.message);
+      return res.status(400).send("Webhook Error");
     }
 
-    // 👇👇👇 TU JEST TEN KOD 👇👇👇
-    if (event.type === "checkout.session.completed") {
-      const session = await stripe.checkout.sessions.retrieve(
+    // 👉 ZAWSZE odpowiadamy Stripe 200
+    res.json({ received: true });
+
+    // 👇 RESZTA JUŻ POZA RESPONSE
+    if (event.type !== "checkout.session.completed") return;
+
+    try {
+      const fullSession = await stripe.checkout.sessions.retrieve(
         event.data.object.id,
         {
           expand: ["shipping_details", "customer_details"],
         }
       );
 
-      const shipping = session.shipping_details;
-      const billing = session.customer_details?.address;
+      const shipping = fullSession.shipping_details;
+      const email = fullSession.customer_details?.email;
 
-      console.log("✅ SHIPPING:", shipping);
-      console.log("✅ BILLING:", billing);
+      console.log("✅ FULL SESSION:", {
+        email,
+        shipping,
+      });
 
       await pool.query(
         `
-    UPDATE orders
-    SET
-      status = 'paid',
-      shipping_name = $1,
-      shipping_address_line1 = $2,
-      shipping_address_line2 = $3,
-      shipping_city = $4,
-      shipping_postal_code = $5,
-      shipping_country = $6,
-      customer_email = $7
-    WHERE stripe_session_id = $8
-    `,
+        UPDATE orders
+        SET
+          status = 'paid',
+          customer_email = $1,
+          shipping_name = $2,
+          shipping_address_line1 = $3,
+          shipping_address_line2 = $4,
+          shipping_city = $5,
+          shipping_postal_code = $6,
+          shipping_country = $7
+        WHERE stripe_session_id = $8
+        `,
         [
+          email ?? null,
           shipping?.name ?? null,
           shipping?.address?.line1 ?? null,
           shipping?.address?.line2 ?? null,
           shipping?.address?.city ?? null,
           shipping?.address?.postal_code ?? null,
           shipping?.address?.country ?? null,
-          session.customer_details?.email ?? null,
-          session.id,
+          fullSession.id,
         ]
       );
 
       await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
-        session.metadata.userId,
+        fullSession.metadata.userId,
       ]);
-    }
 
-    res.json({ received: true });
+      console.log("✅ ORDER FINALIZED:", fullSession.id);
+    } catch (err) {
+      console.error("❌ WEBHOOK PROCESSING ERROR:", err);
+    }
   }
 );
 
