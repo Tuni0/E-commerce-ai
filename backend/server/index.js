@@ -36,57 +36,45 @@ app.post(
     res.json({ received: true });
 
     // 👇 RESZTA JUŻ POZA RESPONSE
-    if (event.type !== "checkout.session.completed") return;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
 
-    try {
-      const fullSession = await stripe.checkout.sessions.retrieve(
-        event.data.object.id,
-        {
-          expand: ["shipping_details", "customer_details"],
-        }
-      );
-
-      const shipping = fullSession.shipping_details;
-      const email = fullSession.customer_details?.email;
-
-      console.log("✅ FULL SESSION:", {
-        email,
-        shipping,
-      });
+      const email = session.customer_details?.email;
+      const shipping = session.collected_information?.shipping_details;
+      const address = shipping?.address;
+      const fullName = shipping?.name;
 
       await pool.query(
         `
-        UPDATE orders
-        SET
-          status = 'paid',
-          customer_email = $1,
-          shipping_name = $2,
-          shipping_address_line1 = $3,
-          shipping_address_line2 = $4,
-          shipping_city = $5,
-          shipping_postal_code = $6,
-          shipping_country = $7
-        WHERE stripe_session_id = $8
-        `,
+    UPDATE orders
+    SET
+      status = 'paid',
+      email = $1,
+      shipping_name = $2,
+      shipping_line1 = $3,
+      shipping_line2 = $4,
+      shipping_city = $5,
+      shipping_postal_code = $6,
+      shipping_country = $7
+    WHERE stripe_session_id = $8
+    `,
         [
-          email ?? null,
-          shipping?.name ?? null,
-          shipping?.address?.line1 ?? null,
-          shipping?.address?.line2 ?? null,
-          shipping?.address?.city ?? null,
-          shipping?.address?.postal_code ?? null,
-          shipping?.address?.country ?? null,
-          fullSession.id,
+          email,
+          fullName,
+          address?.line1,
+          address?.line2,
+          address?.city,
+          address?.postal_code,
+          address?.country,
+          session.id,
         ]
       );
 
       await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
-        fullSession.metadata.userId,
+        session.metadata.userId,
       ]);
 
-      console.log("✅ ORDER FINALIZED:", fullSession.id);
-    } catch (err) {
-      console.error("❌ WEBHOOK PROCESSING ERROR:", err);
+      console.log("✅ ORDER PAID + ADDRESS SAVED:", session.id);
     }
   }
 );
