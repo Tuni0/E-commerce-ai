@@ -13,13 +13,26 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 
+app.use(
+  cors({
+    origin: "https://e-commerce-ai-olive.vercel.app",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
 app.post(
   "/stripe/webhook",
   bodyParser.raw({ type: "application/json" }),
   async (req, res) => {
     const sig = req.headers["stripe-signature"];
-
     let event;
+
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
@@ -31,16 +44,12 @@ app.post(
       return res.status(400).send("Webhook Error");
     }
 
-    if (
-      event.type === "checkout.session.completed" ||
-      event.type === "checkout.session.async_payment_succeeded"
-    ) {
+    if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
       const email = session.customer_details?.email;
-      const shipping = session.collected_information?.shipping_details;
-      const address = shipping?.address;
-      const fullName = shipping?.name;
+      const address = session.customer_details?.address;
+      const fullName = session.customer_details?.name;
 
       await pool.query(
         `
@@ -55,6 +64,7 @@ app.post(
           shipping_postal_code = $6,
           shipping_country = $7
         WHERE stripe_session_id = $8
+          AND status != 'paid'
         `,
         [
           email,
@@ -78,21 +88,7 @@ app.post(
     res.json({ received: true });
   }
 );
-
-app.use(
-  cors({
-    origin: "https://e-commerce-ai-olive.vercel.app",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
 app.use(express.json()); // Add this line to parse JSON request bodies
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 // Sprawdzenie połączenia:
 pool
