@@ -702,8 +702,8 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
         allowed_countries: ["US", "PL"],
       },
 
-      success_url: "https//https://e-commerce-ai-olive.vercel.app/success",
-      cancel_url: "https://https://e-commerce-ai-olive.vercel.app/cart",
+      success_url: "https://e-commerce-ai-olive.vercel.app/success",
+      cancel_url: "https://e-commerce-ai-olive.vercel.app/cart",
 
       metadata: {
         userId: userId.toString(),
