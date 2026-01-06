@@ -35,29 +35,49 @@ app.post(
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
+      const userId = session.metadata.userId;
+
+      const email = session.customer_details?.email || null;
+      const shipping = session.shipping_details;
+
+      const name = shipping?.name || null;
+      const address = shipping?.address || {};
+
       try {
-        // 1️⃣ Oznacz zamówienie jako PAID
         await pool.query(
           `
-          UPDATE orders
-          SET status = 'paid'
-          WHERE stripe_session_id = $1
-          `,
-          [session.id]
+      UPDATE orders
+      SET 
+        status = 'paid',
+        customer_email = $1,
+        shipping_name = $2,
+        shipping_address_line1 = $3,
+        shipping_address_line2 = $4,
+        shipping_city = $5,
+        shipping_postal_code = $6,
+        shipping_country = $7
+      WHERE stripe_session_id = $8
+      `,
+          [
+            email,
+            name,
+            address.line1 || null,
+            address.line2 || null,
+            address.city || null,
+            address.postal_code || null,
+            address.country || null,
+            session.id,
+          ]
         );
 
-        // 2️⃣ Wyczyść koszyk użytkownika
-        await pool.query(
-          `
-          DELETE FROM basket
-          WHERE user_id = $1
-          `,
-          [session.metadata.userId]
-        );
+        await pool.query(`DELETE FROM basket WHERE user_id = $1`, [userId]);
 
-        console.log("✅ Order paid & basket cleared:", session.id);
-      } catch (dbErr) {
-        console.error("❌ DB error in webhook:", dbErr);
+        console.log(
+          "✅ Order PAID, address saved, basket cleared:",
+          session.id
+        );
+      } catch (err) {
+        console.error("❌ Webhook DB error:", err);
       }
     }
 
@@ -654,7 +674,6 @@ app.delete("/basket/remove", isAuthenticated, async (req, res) => {
 app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { address } = req.body;
 
     // 1️⃣ Pobierz koszyk z bazy (SOURCE OF TRUTH)
     const basketResult = await pool.query(
@@ -701,6 +720,8 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
       shipping_address_collection: {
         allowed_countries: ["US", "PL"],
       },
+
+      billing_address_collection: "required",
 
       success_url: "https://e-commerce-ai-olive.vercel.app/success",
       cancel_url: "https://e-commerce-ai-olive.vercel.app/cart",

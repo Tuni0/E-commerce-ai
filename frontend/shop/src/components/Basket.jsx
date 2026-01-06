@@ -11,71 +11,6 @@ function Basket() {
   const { user } = useContext(UserLoginContext);
   const { setIsBasket } = useContext(BasketContext);
 
-  // 🔥 Pełne dane adresowe
-  const [address, setAddress] = useState({
-    firstName: "",
-    lastName: "",
-    country: "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    postalCode: "",
-  });
-
-  const tax = 8.32;
-
-  // Naliczanie shippingu tylko, gdy adres jest wypełniony
-  const isAddressValid =
-    address.firstName &&
-    address.lastName &&
-    address.country &&
-    address.addressLine1 &&
-    address.city &&
-    address.postalCode;
-
-  const shipping = isAddressValid ? (subtotal > 100 ? 0 : 5) : null;
-
-  const total = isAddressValid ? subtotal + tax + (shipping ?? 0) : null;
-
-  // ====== AUTOUZUPEŁNIANIE ADDRESS LINE 1 ======
-  useEffect(() => {
-    const input = document.getElementById("address-line1");
-
-    if (!input || !window.google || !window.google.maps?.places) return;
-
-    const autocomplete = new window.google.maps.places.Autocomplete(input, {
-      types: ["address"],
-    });
-
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-
-      if (!place || !place.address_components) return;
-
-      let street = "";
-      let city = "";
-      let postal = "";
-      let countryCode = "";
-
-      place.address_components.forEach((comp) => {
-        if (comp.types.includes("route")) street = comp.long_name;
-        if (comp.types.includes("street_number"))
-          street = comp.long_name + " " + street;
-        if (comp.types.includes("locality")) city = comp.long_name;
-        if (comp.types.includes("postal_code")) postal = comp.long_name;
-        if (comp.types.includes("country")) countryCode = comp.long_name;
-      });
-
-      setAddress((prev) => ({
-        ...prev,
-        addressLine1: street,
-        city,
-        postalCode: postal,
-        country: countryCode || prev.country,
-      }));
-    });
-  }, []);
-
   // ===== FETCH BASKET =====
   const fetchBasket = async () => {
     try {
@@ -146,18 +81,12 @@ function Basket() {
 
   // ===== CHECKOUT =====
   const handleCheckout = async () => {
-    if (!isAddressValid) {
-      alert("Uzupełnij pełne dane adresowe.");
-      return;
-    }
-    const token = localStorage.getItem("token");
-
     const res = await axios.post(
       `${API_URL}/create-checkout-session`,
-      { address },
+      {},
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       }
     );
@@ -247,114 +176,11 @@ function Basket() {
 
           {/* PRAWA — ADDRESS + COSTS */}
           <div className="lg:col-span-4 flex flex-col gap-4">
-            {/* FORMULARZ */}
-            {!isEmpty && (
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-lg shadow">
-                <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">
-                  Shipping Address
-                </h2>
-
-                <div className="grid grid-cols-1 gap-4">
-                  {/* Każdy input ma poprawione kolory */}
-                  <input
-                    type="text"
-                    placeholder="Name"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.firstName}
-                    onChange={(e) =>
-                      setAddress((p) => ({ ...p, firstName: e.target.value }))
-                    }
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Surname"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.lastName}
-                    onChange={(e) =>
-                      setAddress((p) => ({ ...p, lastName: e.target.value }))
-                    }
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Country"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.country}
-                    onChange={(e) =>
-                      setAddress((p) => ({ ...p, country: e.target.value }))
-                    }
-                  />
-
-                  <input
-                    id="address-line1"
-                    type="text"
-                    placeholder="Address – line 1"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.addressLine1}
-                    onChange={(e) =>
-                      setAddress((p) => ({
-                        ...p,
-                        addressLine1: e.target.value,
-                      }))
-                    }
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Address – line 2 (optional)"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.addressLine2}
-                    onChange={(e) =>
-                      setAddress((p) => ({
-                        ...p,
-                        addressLine2: e.target.value,
-                      }))
-                    }
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="City"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.city}
-                    onChange={(e) =>
-                      setAddress((p) => ({ ...p, city: e.target.value }))
-                    }
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Postal Code"
-                    className="p-2 rounded-lg border bg-white border-gray-300 text-gray-900 
-                          placeholder-gray-500 
-                          dark:bg-neutral-700 dark:border-neutral-600 dark:text-white dark:placeholder-gray-300"
-                    value={address.postalCode}
-                    onChange={(e) =>
-                      setAddress((p) => ({ ...p, postalCode: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
             {/* PODSUMOWANIE */}
             {!isEmpty && (
               <div className="bg-white dark:bg-neutral-800 p-6 rounded-lg shadow">
                 <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">
-                  Sumbit
+                  Submit
                 </h2>
 
                 <div className="flex justify-between text-sm mb-2 text-gray-800 dark:text-gray-200">
@@ -362,37 +188,12 @@ function Basket() {
                   <p>${subtotal.toFixed(2)}</p>
                 </div>
 
-                {!isAddressValid ? (
-                  <p className="text-red-500 text-sm">
-                    Fill in the complete address to see shipping and total cost.
-                  </p>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-sm mb-2 text-gray-800 dark:text-gray-200">
-                      <p>Shipping</p>
-                      <p>
-                        {shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`}
-                      </p>
-                    </div>
-
-                    <div className="flex justify-between text-sm mb-2 text-gray-800 dark:text-gray-200">
-                      <p>Tax</p>
-                      <p>${tax.toFixed(2)}</p>
-                    </div>
-
-                    <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white">
-                      <p>Total</p>
-                      <p>${total.toFixed(2)}</p>
-                    </div>
-
-                    <button
-                      onClick={handleCheckout}
-                      className="mt-6 w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-500"
-                    >
-                      Checkout
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={handleCheckout}
+                  className="mt-6 w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-500"
+                >
+                  Checkout
+                </button>
               </div>
             )}
           </div>
