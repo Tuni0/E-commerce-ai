@@ -67,10 +67,18 @@ function ItemPage() {
     const number = window.location.pathname.split("/")[2];
 
     axios
-      .post(`${API_URL}/products/${number}/basket`, {
-        color: selectedColor.name, // ⬅️ uwaga: przekazujemy .name, nie obiekt
-        size: selectedSize.name,
-      })
+      .post(
+        `${API_URL}/products/${number}/basket`,
+        {
+          color: selectedColor.name,
+          size: selectedSize.name,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      )
       .then((res) => {
         console.log("Added to basket:", res.data);
         setIsBasket(true); // aktualizuj kontekst koszyka

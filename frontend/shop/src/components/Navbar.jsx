@@ -34,7 +34,11 @@ function Navbar() {
   useEffect(() => {
     if (isBasket) {
       axios
-        .get(`${API_URL}/basketItems`, { withCredentials: true })
+        .get(`${API_URL}/basketItems`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        })
         .then((result) => {
           const total = result.data.reduce(
             (acc, item) => acc + item.quantity,
@@ -51,7 +55,11 @@ function Navbar() {
   useEffect(() => {
     if (user) {
       axios
-        .get(`${API_URL}/basketItems`)
+        .get(`${API_URL}/basketItems`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        })
         .then((result) => {
           console.log(result.data[0]);
           const total = result.data.reduce(

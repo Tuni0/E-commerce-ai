@@ -1,14 +1,13 @@
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
-import session from "express-session";
-import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";
 import pkg from "pg";
 const { Pool } = pkg;
 import "dotenv/config";
 import { swaggerDocs } from "./swagger.js";
 import Stripe from "stripe";
+import jwt from "jsonwebtoken";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -69,27 +68,10 @@ app.post(
 app.use(
   cors({
     origin: "https://e-commerce-ai-olive.vercel.app", // tylko frontendowy adres
-    credentials: true,
   })
 );
 
 app.use(express.json()); // Add this line to parse JSON request bodies
-app.use(cookieParser());
-app.use(
-  session({
-    secret: "secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: true, // true tylko w https
-      httpOnly: true,
-      sameSite: "none", // <-- dodaj to!
-      maxAge: 1000 * 60 * 60 * 24,
-    },
-  })
-);
-
-app.use(bodyParser.json());
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -104,34 +86,41 @@ pool
 
 // ===== MIDDLEWARE =====
 const isAuthenticated = (req, res, next) => {
-  if (req.session.user) next();
-  else res.status(401).json({ message: "Unauthorized" });
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ message: "No token" });
+  }
+
+  try {
+    if (!authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Invalid auth header" });
+    }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    req.user = decoded; // { userId, name }
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
 };
 
 // ===== ROUTES =====
 
-app.get("/auth/verify", (req, res) => {
-  if (req.session.user) {
-    return res.json({ validUser: true, username: req.session.user });
-  } else {
-    return res.json({ validUser: false });
-  }
+app.get("/auth/verify", isAuthenticated, (req, res) => {
+  res.json({
+    validUser: true,
+    user: req.user,
+  });
 });
 
 app.get("/protected-route", isAuthenticated, (req, res) => {
   res.json({ message: "This is a protected route!" });
 });
 
-app.get("/", (req, res) => {
-  if (req.session.user) {
-    res.json({ validUser: true, username: req.session.user });
-  } else {
-    res.json({ validUser: false });
-  }
-});
-
 // === USERS ===
-app.get("/users", async (req, res) => {
+app.get("/users", isAuthenticated, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM users");
     res.json(result.rows);
@@ -239,49 +228,41 @@ app.post("/signup", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [
       email,
     ]);
 
     if (result.rows.length === 0) {
-      return res.send("User not found");
+      return res.status(401).json({ message: "User not found" });
     }
 
     const user = result.rows[0];
     const isPasswordValid = bcrypt.compareSync(password, user.password);
 
     if (!isPasswordValid) {
-      return res.send("Incorrect password");
+      return res.status(401).json({ message: "Wrong password" });
     }
 
-    req.session.user = user.name;
-    req.session.userId = user.id; // zakładam, że kolumna to id
-    console.log("✅ Session created:", req.session);
+    // ✅ JWT
+    const token = jwt.sign(
+      { userId: user.id, name: user.name },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    res.json({ Login: true, username: user.name });
+    res.json({
+      login: true,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+      },
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error fetching user");
+    res.status(500).send("Login error");
   }
-});
-
-/**
- * @openapi
- * /logout:
- *   post:
- *     tags:
- *       - Auth
- *     summary: Wylogowanie użytkownika
- *     responses:
- *       200:
- *         description: User logged out
- */
-
-app.post("/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err) res.status(500).send("Error logging out");
-    else res.json({ Logout: true });
-  });
 });
 
 /**
@@ -379,15 +360,15 @@ app.get("/products/:number", async (req, res) => {
  */
 
 // === BASKET ===
-app.post("/products/:number/basket", async (req, res) => {
+app.post("/products/:number/basket", isAuthenticated, async (req, res) => {
   try {
-    if (!req.session.userId)
+    if (!req.user.userId)
       return res.status(401).send("Unauthorized - please log in");
 
     const number = req.params.number;
     const selectedColor = req.body.color || "white"; // ⬅️ domyślny kolor
     const selectedSize = req.body.size || "m"; // ⬅️ domyślny rozmiar
-    const userId = req.session.userId;
+    const userId = req.user.userId;
 
     // 🔍 Sprawdź, czy taki produkt już istnieje w koszyku użytkownika
     const existing = await pool.query(
@@ -436,9 +417,9 @@ app.post("/products/:number/basket", async (req, res) => {
  *         description: Unauthorized
  */
 
-app.get("/basketItems", async (req, res) => {
+app.get("/basketItems", isAuthenticated, async (req, res) => {
   try {
-    if (!req.session.userId) {
+    if (!req.user.userId) {
       return res.status(401).send("Unauthorized");
     }
 
@@ -460,7 +441,7 @@ app.get("/basketItems", async (req, res) => {
   WHERE basket.user_id = $1
   ORDER BY basket.id ASC
   `,
-      [req.session.userId]
+      [req.user.userId]
     );
 
     // 🔧 Ujednolicamy strukturę danych tak, żeby pasowała do frontu
@@ -485,7 +466,7 @@ app.get("/basketItems", async (req, res) => {
   }
 });
 
-app.put("/basket/updateQuantity", async (req, res) => {
+app.put("/basket/updateQuantity", isAuthenticated, async (req, res) => {
   try {
     const { basketId, quantity } = req.body;
 
@@ -517,7 +498,7 @@ app.put("/basket/updateQuantity", async (req, res) => {
 
 app.get("/checkout", isAuthenticated, async (req, res) => {
   try {
-    const userId = req.session.userId;
+    const userId = req.user.userId;
     const query = `
       SELECT 
         basket.product_id, 
@@ -567,7 +548,7 @@ app.get("/checkout", isAuthenticated, async (req, res) => {
  *         description: Quantity increased
  */
 
-app.put("/basket/increase", async (req, res) => {
+app.put("/basket/increase", isAuthenticateds, async (req, res) => {
   try {
     const { basketId } = req.body;
 
@@ -605,7 +586,7 @@ app.put("/basket/increase", async (req, res) => {
  *         description: Quantity decreased or item removed
  */
 
-app.put("/basket/decrease", async (req, res) => {
+app.put("/basket/decrease", isAuthenticated, async (req, res) => {
   try {
     const { basketId } = req.body;
 
@@ -655,7 +636,7 @@ app.put("/basket/decrease", async (req, res) => {
  *         description: Item removed
  */
 
-app.delete("/basket/remove", async (req, res) => {
+app.delete("/basket/remove", isAuthenticated, async (req, res) => {
   try {
     const { basketId } = req.body;
 
@@ -670,7 +651,7 @@ app.delete("/basket/remove", async (req, res) => {
 
 app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
   try {
-    const userId = req.session.userId;
+    const userId = req.user.userId;
     const { address } = req.body;
 
     // 1️⃣ Pobierz koszyk z bazy (SOURCE OF TRUTH)
@@ -719,8 +700,8 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
         allowed_countries: ["US", "PL"],
       },
 
-      success_url: "http://localhost:5173/success",
-      cancel_url: "http://localhost:5173/cart",
+      success_url: "https//https://e-commerce-ai-olive.vercel.app/success",
+      cancel_url: "https://https://e-commerce-ai-olive.vercel.app/cart",
 
       metadata: {
         userId: userId.toString(),

@@ -22,8 +22,6 @@ function Basket() {
     postalCode: "",
   });
 
-  axios.defaults.withCredentials = true;
-
   const tax = 8.32;
 
   // Naliczanie shippingu tylko, gdy adres jest wypełniony
@@ -81,7 +79,11 @@ function Basket() {
   // ===== FETCH BASKET =====
   const fetchBasket = async () => {
     try {
-      const result = await axios.get(`${API_URL}/basketItems`);
+      const result = await axios.get(`${API_URL}/basketItems`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
       setItems(result.data);
       calculateSubtotal(result.data);
     } catch (err) {
@@ -104,13 +106,29 @@ function Basket() {
 
   // ===== QUANTITY CONTROLS =====
   const increase = async (basketId) => {
-    await axios.put(`${API_URL}/basket/increase`, { basketId });
+    await axios.put(
+      `${API_URL}/basket/increase`,
+      { basketId },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
     setIsBasket(true);
     fetchBasket();
   };
 
   const decrease = async (basketId) => {
-    await axios.put(`${API_URL}/basket/decrease`, { basketId });
+    await axios.put(
+      `${API_URL}/basket/decrease`,
+      { basketId },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
     setIsBasket(true);
     fetchBasket();
   };
@@ -118,6 +136,9 @@ function Basket() {
   const removeItem = async (basketId) => {
     await axios.delete(`${API_URL}/basket/remove`, {
       data: { basketId },
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
     });
     setIsBasket(true);
     fetchBasket();
@@ -130,9 +151,15 @@ function Basket() {
       return;
     }
 
-    const res = await axios.post(`${API_URL}/create-checkout-session`, {
-      address,
-    });
+    const res = await axios.post(
+      `${API_URL}/create-checkout-session`,
+      { address },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
 
     const stripe = await loadStripe(STRIPE_PUBLIC_KEY);
     stripe.redirectToCheckout({ sessionId: res.data.checkoutSessionId });

@@ -94,7 +94,11 @@ const Products = () => {
         await axios.post(
           `${API_URL}/products/${id}/favourite`,
           {},
-          { withCredentials: true }
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }
         );
       } catch (err) {
         console.error(err);
@@ -110,7 +114,11 @@ const Products = () => {
         await axios.post(
           `${API_URL}/products/${id}/basket`,
           {},
-          { withCredentials: true }
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }
         );
         setIsBasket(true);
 

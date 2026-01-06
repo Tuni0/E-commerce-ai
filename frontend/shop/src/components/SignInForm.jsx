@@ -1,43 +1,46 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import { API_URL } from "../settings";
+import { UserLoginContext } from "../App";
 
 function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  axios.defaults.withCredentials = true;
+  const { setUser } = useContext(UserLoginContext);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    axios
-      .post(
+
+    try {
+      const res = await axios.post(
         `${API_URL}/login`,
         { email, password },
         {
           headers: {
             "Content-Type": "application/json",
           },
-          withCredentials: true, // jeśli backend używa sesji/cookies
         }
-      )
+      );
 
-      .then((result) => {
-        console.log(result.data);
-        if (result.data === "Incorrect password") {
-          alert("Incorrect password or email");
-        } else if (result.data.Login === true) {
-          localStorage.setItem("user", JSON.stringify(result.data.username));
-          window.location.pathname = "/";
-        } else {
-          alert("Login failed! Please contact support.");
-        }
-      })
-      .catch((err) => {
-        console.log("Error:", err);
-      });
+      // ✅ zapisz JWT
+      localStorage.setItem("token", res.data.token);
+
+      // ✅ ustaw usera w context
+      setUser(res.data.user);
+
+      // ✅ redirect
+      navigate("/");
+    } catch (err) {
+      if (err.response?.status === 401) {
+        alert("Wrong email or password");
+      } else {
+        alert("Login error");
+      }
+      console.error(err);
+    }
   };
 
   return (

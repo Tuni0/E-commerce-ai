@@ -10,7 +10,6 @@ function SignUpForm() {
   const [userName, setUserName] = useState("");
   const [surname] = useState("surname");
   const [isAdmin] = useState(false);
-  axios.defaults.withCredentials = true;
   const navigate = useNavigate();
 
   const handleSumbit = (e) => {
