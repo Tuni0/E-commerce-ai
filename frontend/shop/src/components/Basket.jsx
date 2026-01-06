@@ -150,13 +150,14 @@ function Basket() {
       alert("Uzupełnij pełne dane adresowe.");
       return;
     }
+    const token = localStorage.getItem("token");
 
     const res = await axios.post(
       `${API_URL}/create-checkout-session`,
       { address },
       {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
       }
     );
