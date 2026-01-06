@@ -29,7 +29,7 @@ const pool = new Pool({
 app.post(
   "/stripe/webhook",
   bodyParser.raw({ type: "application/json" }),
-  async (req, res) => {
+  (req, res) => {
     const sig = req.headers["stripe-signature"];
     let event;
 
@@ -44,50 +44,59 @@ app.post(
       return res.status(400).send("Webhook Error");
     }
 
+    // ✅ ODPOWIEDŹ NATYCHMIAST (TO JEST KLUCZ)
+    res.status(200).json({ received: true });
+
+    // 🔁 LOGIKA ASYNC PO RESPONSE
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
-      const email = session.customer_details?.email;
-      const address = session.customer_details?.address;
-      const fullName = session.customer_details?.name;
+      (async () => {
+        try {
+          const email = session.customer_details?.email;
+          const address = session.customer_details?.address;
+          const fullName = session.customer_details?.name;
 
-      await pool.query(
-        `
-        UPDATE orders
-        SET
-          status = 'paid',
-          email = $1,
-          shipping_name = $2,
-          shipping_line1 = $3,
-          shipping_line2 = $4,
-          shipping_city = $5,
-          shipping_postal_code = $6,
-          shipping_country = $7
-        WHERE stripe_session_id = $8
-          AND status != 'paid'
-        `,
-        [
-          email,
-          fullName,
-          address?.line1,
-          address?.line2,
-          address?.city,
-          address?.postal_code,
-          address?.country,
-          session.id,
-        ]
-      );
+          await pool.query(
+            `
+            UPDATE orders
+            SET
+              status = 'paid',
+              email = $1,
+              shipping_name = $2,
+              shipping_line1 = $3,
+              shipping_line2 = $4,
+              shipping_city = $5,
+              shipping_postal_code = $6,
+              shipping_country = $7
+            WHERE stripe_session_id = $8
+              AND status != 'paid'
+            `,
+            [
+              email,
+              fullName,
+              address?.line1,
+              address?.line2,
+              address?.city,
+              address?.postal_code,
+              address?.country,
+              session.id,
+            ]
+          );
 
-      await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
-        session.metadata.userId,
-      ]);
+          await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
+            session.metadata.userId,
+          ]);
 
-      console.log("✅ ORDER PAID:", session.id);
+          console.log("✅ ORDER PAID:", session.id);
+        } catch (err) {
+          console.error("❌ Webhook async error:", err);
+        }
+      })();
     }
-
-    res.json({ received: true });
   }
 );
+
 app.use(express.json()); // Add this line to parse JSON request bodies
 
 // Sprawdzenie połączenia:
