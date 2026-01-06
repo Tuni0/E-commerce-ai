@@ -11,6 +11,9 @@ import { swaggerDocs } from "./swagger.js";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const app = express();
+
 app.post(
   "/stripe/webhook",
   bodyParser.raw({ type: "application/json" }),
@@ -63,7 +66,6 @@ app.post(
   }
 );
 
-const app = express();
 app.use(
   cors({
     origin: "http://localhost:5173", // tylko frontendowy adres
