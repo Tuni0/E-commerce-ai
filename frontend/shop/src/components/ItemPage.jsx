@@ -53,7 +53,7 @@ function ItemPage() {
   }, []);
 
   if (!products) {
-    return <div className="text-center text-gray-500">Loading...</div>;
+    return <div className="text-center text-gray-400">Loading...</div>;
   }
 
   const handleSubmit = (e) => {
