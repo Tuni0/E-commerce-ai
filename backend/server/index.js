@@ -67,7 +67,9 @@ app.post(
 
 app.use(
   cors({
-    origin: "https://e-commerce-ai-olive.vercel.app", // tylko frontendowy adres
+    origin: "https://e-commerce-ai-olive.vercel.app",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 

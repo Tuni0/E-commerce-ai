@@ -6,7 +6,7 @@ import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { UserLoginContext } from "../App.jsx";
 
 function Login() {
-  const { user } = useContext(UserLoginContext); // Ensure setUser is defined
+  const { user, setUser } = useContext(UserLoginContext); // Ensure setUser is defined
 
   const handleLogIn = (e) => {
     e.preventDefault();
@@ -21,7 +21,8 @@ function Login() {
   const handleLogOut = (e) => {
     e.preventDefault();
     localStorage.removeItem("token");
-    window.location.pathname = "/";
+    setUser(null);
+    window.location.href = "/";
   };
 
   return (

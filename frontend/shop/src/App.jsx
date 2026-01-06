@@ -20,32 +20,35 @@ export const UserLoginContext = createContext({
 });
 export const BasketContext = createContext();
 
-axios.defaults.withCredentials = true;
-
 function App() {
   const [user, setUser] = useState(null);
   const [isBasket, setIsBasket] = useState(false);
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        setUser(null);
+        return;
+      }
+
       try {
         const res = await axios.get(`${API_URL}/auth/verify`, {
-          withCredentials: true,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
 
-        if (res.data.validUser) {
-          setUser(res.data.username);
-          console.log("✅ Sesja aktywna dla:", res.data.username);
-        } else {
-          setUser(null);
-          console.log("❌ Brak aktywnej sesji");
-        }
+        setUser(res.data.user); // { userId, name }
       } catch (err) {
-        console.error("Session check error:", err);
+        console.log("❌ Token invalid or expired");
+        localStorage.removeItem("token");
+        setUser(null);
       }
     };
 
-    checkSession();
+    checkAuth();
   }, []);
 
   return (
