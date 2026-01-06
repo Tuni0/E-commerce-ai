@@ -29,7 +29,8 @@ const pool = new Pool({
 app.post(
   "/stripe/webhook",
   bodyParser.raw({ type: "application/json" }),
-  (req, res) => {
+  async (req, res) => {
+    // 👈 async MUSI TU BYĆ
     const sig = req.headers["stripe-signature"];
     let event;
 
@@ -44,55 +45,49 @@ app.post(
       return res.status(400).send("Webhook Error");
     }
 
-    // ✅ ODPOWIEDŹ NATYCHMIAST (TO JEST KLUCZ)
-    res.status(200).json({ received: true });
+    // 👇 ZAWSZE odpowiadamy Stripe NATYCHMIAST
+    res.json({ received: true });
 
-    // 🔁 LOGIKA ASYNC PO RESPONSE
+    // 👇 a DB robimy async po odpowiedzi
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
-      (async () => {
-        try {
-          const email = session.customer_details?.email;
-          const address = session.customer_details?.address;
-          const fullName = session.customer_details?.name;
+      const email = session.customer_details?.email;
+      const address = session.customer_details?.address;
+      const fullName = session.customer_details?.name;
 
-          await pool.query(
-            `
-            UPDATE orders
-            SET
-              status = 'paid',
-              email = $1,
-              shipping_name = $2,
-              shipping_line1 = $3,
-              shipping_line2 = $4,
-              shipping_city = $5,
-              shipping_postal_code = $6,
-              shipping_country = $7
-            WHERE stripe_session_id = $8
-              AND status != 'paid'
-            `,
-            [
-              email,
-              fullName,
-              address?.line1,
-              address?.line2,
-              address?.city,
-              address?.postal_code,
-              address?.country,
-              session.id,
-            ]
-          );
+      await pool.query(
+        `
+        UPDATE orders
+        SET
+          status = 'paid',
+          email = $1,
+          shipping_name = $2,
+          shipping_line1 = $3,
+          shipping_line2 = $4,
+          shipping_city = $5,
+          shipping_postal_code = $6,
+          shipping_country = $7
+        WHERE payment_intent_id = $8
+          AND status != 'paid'
+        `,
+        [
+          email,
+          fullName,
+          address?.line1,
+          address?.line2,
+          address?.city,
+          address?.postal_code,
+          address?.country,
+          session.payment_intent,
+        ]
+      );
 
-          await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
-            session.metadata.userId,
-          ]);
+      await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
+        session.metadata.userId,
+      ]);
 
-          console.log("✅ ORDER PAID:", session.id);
-        } catch (err) {
-          console.error("❌ Webhook async error:", err);
-        }
-      })();
+      console.log("✅ ORDER PAID:", session.id);
     }
   }
 );
@@ -738,18 +733,32 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
       success_url: "https://e-commerce-ai-olive.vercel.app/success",
       cancel_url: "https://e-commerce-ai-olive.vercel.app/cart",
 
-      metadata: {
-        userId: userId.toString(),
+      // 🔥🔥🔥 TO JEST KLUCZ
+      payment_intent_data: {
+        metadata: {
+          userId: userId.toString(),
+        },
       },
     });
 
     // 5️⃣ ZAPISZ ORDER (PENDING)
     await pool.query(
       `
-      INSERT INTO orders (user_id, stripe_session_id, total_cents, status)
-      VALUES ($1, $2, $3, 'pending')
-      `,
-      [userId, session.id, totalCents]
+  INSERT INTO orders (
+    user_id,
+    stripe_session_id,
+    payment_intent_id,
+    total_cents,
+    status
+  )
+  VALUES ($1, $2, $3, $4, 'pending')
+  `,
+      [
+        userId,
+        session.id,
+        session.payment_intent, // 🔥 TO
+        totalCents,
+      ]
     );
 
     // 6️⃣ Zwróć sessionId do frontendu
