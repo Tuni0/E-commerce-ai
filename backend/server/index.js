@@ -20,7 +20,6 @@ app.post(
     const sig = req.headers["stripe-signature"];
 
     let event;
-
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
@@ -32,11 +31,10 @@ app.post(
       return res.status(400).send("Webhook Error");
     }
 
-    // 👉 ZAWSZE odpowiadamy Stripe 200
-    res.json({ received: true });
-
-    // 👇 RESZTA JUŻ POZA RESPONSE
-    if (event.type === "checkout.session.completed") {
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded"
+    ) {
       const session = event.data.object;
 
       const email = session.customer_details?.email;
@@ -46,18 +44,18 @@ app.post(
 
       await pool.query(
         `
-    UPDATE orders
-    SET
-      status = 'paid',
-      email = $1,
-      shipping_name = $2,
-      shipping_line1 = $3,
-      shipping_line2 = $4,
-      shipping_city = $5,
-      shipping_postal_code = $6,
-      shipping_country = $7
-    WHERE stripe_session_id = $8
-    `,
+        UPDATE orders
+        SET
+          status = 'paid',
+          email = $1,
+          shipping_name = $2,
+          shipping_line1 = $3,
+          shipping_line2 = $4,
+          shipping_city = $5,
+          shipping_postal_code = $6,
+          shipping_country = $7
+        WHERE stripe_session_id = $8
+        `,
         [
           email,
           fullName,
@@ -74,8 +72,10 @@ app.post(
         session.metadata.userId,
       ]);
 
-      console.log("✅ ORDER PAID + ADDRESS SAVED:", session.id);
+      console.log("✅ ORDER PAID:", session.id);
     }
+
+    res.json({ received: true });
   }
 );
 
