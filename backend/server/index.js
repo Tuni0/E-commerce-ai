@@ -8,6 +8,60 @@ import pkg from "pg";
 const { Pool } = pkg;
 import "dotenv/config";
 import { swaggerDocs } from "./swagger.js";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+app.post(
+  "/stripe/webhook",
+  bodyParser.raw({ type: "application/json" }),
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err) {
+      console.error("❌ Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // 👇👇👇 TU JEST TEN KOD 👇👇👇
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+
+      try {
+        // 1️⃣ Oznacz zamówienie jako PAID
+        await pool.query(
+          `
+          UPDATE orders
+          SET status = 'paid'
+          WHERE stripe_session_id = $1
+          `,
+          [session.id]
+        );
+
+        // 2️⃣ Wyczyść koszyk użytkownika
+        await pool.query(
+          `
+          DELETE FROM basket
+          WHERE user_id = $1
+          `,
+          [session.metadata.userId]
+        );
+
+        console.log("✅ Order paid & basket cleared:", session.id);
+      } catch (dbErr) {
+        console.error("❌ DB error in webhook:", dbErr);
+      }
+    }
+
+    res.json({ received: true });
+  }
+);
 
 const app = express();
 app.use(
@@ -609,6 +663,84 @@ app.delete("/basket/remove", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send("Delete failed");
+  }
+});
+
+app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const { address } = req.body;
+
+    // 1️⃣ Pobierz koszyk z bazy (SOURCE OF TRUTH)
+    const basketResult = await pool.query(
+      `
+      SELECT 
+        basket.quantity,
+        product.name,
+        product.price
+      FROM basket
+      JOIN product ON product.id = basket.product_id
+      WHERE basket.user_id = $1
+      `,
+      [userId]
+    );
+
+    if (basketResult.rows.length === 0) {
+      return res.status(400).json({ error: "Basket empty" });
+    }
+
+    // 2️⃣ Zbuduj line_items dla Stripe
+    const line_items = basketResult.rows.map((item) => ({
+      price_data: {
+        currency: "usd",
+        product_data: {
+          name: item.name,
+        },
+        unit_amount: Math.round(item.price * 100), // cents
+      },
+      quantity: item.quantity,
+    }));
+
+    // 3️⃣ Policz TOTAL (backend!)
+    const totalCents = basketResult.rows.reduce(
+      (sum, item) => sum + Math.round(item.price * 100) * item.quantity,
+      0
+    );
+
+    // 4️⃣ Utwórz Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items,
+
+      shipping_address_collection: {
+        allowed_countries: ["US", "PL"],
+      },
+
+      success_url: "http://localhost:5173/success",
+      cancel_url: "http://localhost:5173/cart",
+
+      metadata: {
+        userId: userId.toString(),
+      },
+    });
+
+    // 5️⃣ ZAPISZ ORDER (PENDING)
+    await pool.query(
+      `
+      INSERT INTO orders (user_id, stripe_session_id, total_cents, status)
+      VALUES ($1, $2, $3, 'pending')
+      `,
+      [userId, session.id, totalCents]
+    );
+
+    // 6️⃣ Zwróć sessionId do frontendu
+    res.json({
+      checkoutSessionId: session.id,
+    });
+  } catch (err) {
+    console.error("❌ create-checkout-session error:", err);
+    res.status(500).send("Stripe error");
   }
 });
 

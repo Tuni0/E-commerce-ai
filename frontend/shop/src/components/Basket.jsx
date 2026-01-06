@@ -131,7 +131,6 @@ function Basket() {
     }
 
     const res = await axios.post(`${API_URL}/create-checkout-session`, {
-      items,
       address,
     });
 
