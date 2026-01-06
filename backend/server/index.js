@@ -724,8 +724,16 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
       checkoutSessionId: session.id,
     });
   } catch (err) {
-    console.error("❌ create-checkout-session error:", err);
-    res.status(500).send("Stripe error");
+    console.error("❌ Stripe FULL error:", {
+      message: err.message,
+      type: err.type,
+      code: err.code,
+      raw: err.raw,
+    });
+    res.status(500).json({
+      error: err.message,
+      type: err.type,
+    });
   }
 });
 
