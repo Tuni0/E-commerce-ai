@@ -68,7 +68,7 @@ app.post(
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // tylko frontendowy adres
+    origin: "https://e-commerce-ai-olive.vercel.app", // tylko frontendowy adres
     credentials: true,
   })
 );
