@@ -548,7 +548,7 @@ app.get("/checkout", isAuthenticated, async (req, res) => {
  *         description: Quantity increased
  */
 
-app.put("/basket/increase", isAuthenticateds, async (req, res) => {
+app.put("/basket/increase", isAuthenticated, async (req, res) => {
   try {
     const { basketId } = req.body;
 
