@@ -44,15 +44,10 @@ app.post(
       return res.status(400).send("Webhook Error");
     }
 
-    // ODPÓR STRIPE NATYCHMIAST
-    res.json({ received: true });
-
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
-      // 1. Wyciągamy dane klienta
       const email = session.customer_details?.email;
-      // Adres pobieramy z shipping_details, jeśli zbierasz go do wysyłki
       const shipping = session.shipping_details;
       const address = shipping?.address || session.customer_details?.address;
       const fullName = shipping?.name || session.customer_details?.name;
@@ -60,52 +55,50 @@ app.post(
       console.log("Processing session:", session.id);
 
       try {
+        // WYKONUJEMY ZAPYTANIE I CZEKAMY NA WYNIK
         const result = await pool.query(
           `
-      UPDATE orders
-      SET
-        status = 'paid',
-        email = $1,
-        shipping_name = $2,
-        shipping_line1 = $3,
-        shipping_line2 = $4,
-        shipping_city = $5,
-        shipping_postal_code = $6,
-        shipping_country = $7
-      WHERE stripe_session_id = $8
-      RETURNING *; -- Dodajemy, żeby zobaczyć czy coś się zmieniło
-      `,
+          UPDATE orders
+          SET
+            status = 'paid',
+            email = $1,
+            shipping_name = $2,
+            shipping_line1 = $3,
+            shipping_line2 = $4,
+            shipping_city = $5,
+            shipping_postal_code = $6,
+            shipping_country = $7
+          WHERE stripe_session_id = $8
+          RETURNING *;
+          `,
           [
             email,
             fullName,
-            address?.line1,
-            address?.line2,
-            address?.city,
-            address?.postal_code,
-            address?.country,
+            address?.line1 || null,
+            address?.line2 || null,
+            address?.city || null,
+            address?.postal_code || null,
+            address?.country || null,
             session.id,
           ]
         );
 
         console.log("Rows updated:", result.rowCount);
 
-        // 2. Usuwanie koszyka - upewnij się, że metadata.userId istnieje!
-        // Jeśli w create-checkout-session dałeś go do payment_intent_data,
-        // to tutaj musisz go wyciągnąć z session.metadata (jeśli tam jest)
         const userId = session.metadata?.userId;
-
         if (userId) {
           await pool.query(`DELETE FROM basket WHERE user_id = $1`, [userId]);
           console.log(`Basket cleared for user: ${userId}`);
-        } else {
-          console.warn(
-            "⚠️ No userId found in session metadata, basket not cleared."
-          );
         }
       } catch (err) {
         console.error("❌ Database error during webhook:", err);
+        // Jeśli baza padnie, zwracamy 500, żeby Stripe spróbował ponownie później
+        return res.status(500).send("Database Error");
       }
     }
+
+    // ODPOWIEDŹ WYSYŁAMY DOPIERO PO ZAKOŃCZENIU WSZYSTKICH OPERACJI
+    res.json({ received: true });
   }
 );
 
