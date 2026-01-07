@@ -799,6 +799,10 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
   }
 });
 
+app.get("/", (req, res) => {
+  res.json({ status: "OK", service: "Backend API" });
+});
+
 // ===== START SERVERA =====
 app.listen(3006, () => {
   console.log("🚀 Server running on port 3006");
