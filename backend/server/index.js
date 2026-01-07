@@ -50,42 +50,61 @@ app.post(
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
+      // 1. Wyciągamy dane klienta
       const email = session.customer_details?.email;
-      const address = session.customer_details?.address;
-      const fullName = session.customer_details?.name;
+      // Adres pobieramy z shipping_details, jeśli zbierasz go do wysyłki
+      const shipping = session.shipping_details;
+      const address = shipping?.address || session.customer_details?.address;
+      const fullName = shipping?.name || session.customer_details?.name;
 
-      const result = await pool.query(
-        `
-        UPDATE orders
-        SET
-          status = 'paid',
-          email = $1,
-          shipping_name = $2,
-          shipping_line1 = $3,
-          shipping_line2 = $4,
-          shipping_city = $5,
-          shipping_postal_code = $6,
-          shipping_country = $7
-        WHERE stripe_session_id = $8
-          AND status != 'paid'
-        `,
-        [
-          email,
-          fullName,
-          address?.line1,
-          address?.line2,
-          address?.city,
-          address?.postal_code,
-          address?.country,
-          session.id, // 🔥 TO JEST KLUCZ
-        ]
-      );
+      console.log("Processing session:", session.id);
 
-      console.log("UPDATED ROWS:", result.rowCount);
+      try {
+        const result = await pool.query(
+          `
+      UPDATE orders
+      SET
+        status = 'paid',
+        email = $1,
+        shipping_name = $2,
+        shipping_line1 = $3,
+        shipping_line2 = $4,
+        shipping_city = $5,
+        shipping_postal_code = $6,
+        shipping_country = $7
+      WHERE stripe_session_id = $8
+      RETURNING *; -- Dodajemy, żeby zobaczyć czy coś się zmieniło
+      `,
+          [
+            email,
+            fullName,
+            address?.line1,
+            address?.line2,
+            address?.city,
+            address?.postal_code,
+            address?.country,
+            session.id,
+          ]
+        );
 
-      await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
-        session.metadata?.userId,
-      ]);
+        console.log("Rows updated:", result.rowCount);
+
+        // 2. Usuwanie koszyka - upewnij się, że metadata.userId istnieje!
+        // Jeśli w create-checkout-session dałeś go do payment_intent_data,
+        // to tutaj musisz go wyciągnąć z session.metadata (jeśli tam jest)
+        const userId = session.metadata?.userId;
+
+        if (userId) {
+          await pool.query(`DELETE FROM basket WHERE user_id = $1`, [userId]);
+          console.log(`Basket cleared for user: ${userId}`);
+        } else {
+          console.warn(
+            "⚠️ No userId found in session metadata, basket not cleared."
+          );
+        }
+      } catch (err) {
+        console.error("❌ Database error during webhook:", err);
+      }
     }
   }
 );
@@ -730,6 +749,11 @@ app.post("/create-checkout-session", isAuthenticated, async (req, res) => {
 
       success_url: "https://e-commerce-ai-olive.vercel.app/success",
       cancel_url: "https://e-commerce-ai-olive.vercel.app/cart",
+
+      metadata: {
+        // <--- DODAJ TO TUTAJ
+        userId: userId.toString(),
+      },
 
       // 🔥🔥🔥 TO JEST KLUCZ
       payment_intent_data: {
