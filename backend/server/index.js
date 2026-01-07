@@ -30,7 +30,6 @@ app.post(
   "/stripe/webhook",
   bodyParser.raw({ type: "application/json" }),
   async (req, res) => {
-    // 👈 async MUSI TU BYĆ
     const sig = req.headers["stripe-signature"];
     let event;
 
@@ -45,10 +44,9 @@ app.post(
       return res.status(400).send("Webhook Error");
     }
 
-    // 👇 ZAWSZE odpowiadamy Stripe NATYCHMIAST
+    // ODPÓR STRIPE NATYCHMIAST
     res.json({ received: true });
 
-    // 👇 a DB robimy async po odpowiedzi
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
@@ -56,7 +54,7 @@ app.post(
       const address = session.customer_details?.address;
       const fullName = session.customer_details?.name;
 
-      await pool.query(
+      const result = await pool.query(
         `
         UPDATE orders
         SET
@@ -68,7 +66,7 @@ app.post(
           shipping_city = $5,
           shipping_postal_code = $6,
           shipping_country = $7
-        WHERE payment_intent_id = $8
+        WHERE stripe_session_id = $8
           AND status != 'paid'
         `,
         [
@@ -79,15 +77,15 @@ app.post(
           address?.city,
           address?.postal_code,
           address?.country,
-          session.payment_intent,
+          session.id, // 🔥 TO JEST KLUCZ
         ]
       );
 
-      await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
-        session.metadata.userId,
-      ]);
+      console.log("UPDATED ROWS:", result.rowCount);
 
-      console.log("✅ ORDER PAID:", session.id);
+      await pool.query(`DELETE FROM basket WHERE user_id = $1`, [
+        session.metadata?.userId,
+      ]);
     }
   }
 );
