@@ -80,19 +80,38 @@ function Basket() {
   };
 
   // ===== CHECKOUT =====
+  // ===== CHECKOUT =====
   const handleCheckout = async () => {
-    const res = await axios.post(
-      `${API_URL}/create-checkout-session`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      }
-    );
+    try {
+      const token = localStorage.getItem("token");
 
-    const stripe = await loadStripe(STRIPE_PUBLIC_KEY);
-    stripe.redirectToCheckout({ sessionId: res.data.checkoutSessionId });
+      if (!token) {
+        alert("Musisz być zalogowany");
+        return;
+      }
+
+      const res = await axios.post(
+        `${API_URL}/create-checkout-session`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const stripe = await loadStripe(STRIPE_PUBLIC_KEY);
+
+      await stripe.redirectToCheckout({
+        sessionId: res.data.checkoutSessionId,
+      });
+    } catch (err) {
+      console.error("❌ Checkout error:", err);
+
+      alert(
+        err.response?.data?.error || "Błąd podczas przechodzenia do płatności"
+      );
+    }
   };
 
   const isEmpty = items.length === 0;
