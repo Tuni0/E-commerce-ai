@@ -47,35 +47,35 @@ app.post(
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
-      const email = session.customer_details?.email;
+      // Pobieramy dane bezpiecznie
+      const email = session.customer_details?.email || null;
       const shipping = session.shipping_details;
       const address = shipping?.address || session.customer_details?.address;
-      const fullName = shipping?.name || session.customer_details?.name;
+      const fullName = shipping?.name || session.customer_details?.name || null;
 
       console.log("Processing session:", session.id);
 
       try {
-        // WYKONUJEMY ZAPYTANIE I CZEKAMY NA WYNIK
         const result = await pool.query(
           `
-          UPDATE orders
-          SET
-            status = 'paid',
-            email = $1,
-            shipping_name = $2,
-            shipping_line1 = $3,
-            shipping_line2 = $4,
-            shipping_city = $5,
-            shipping_postal_code = $6,
-            shipping_country = $7
-          WHERE stripe_session_id = $8
-          RETURNING *;
-          `,
+      UPDATE orders
+      SET
+        status = 'paid',
+        email = $1,
+        shipping_name = $2,
+        shipping_line1 = $3,
+        shipping_line2 = $4,
+        shipping_city = $5,
+        shipping_postal_code = $6,
+        shipping_country = $7
+      WHERE stripe_session_id = $8
+      RETURNING *;
+      `,
           [
             email,
             fullName,
             address?.line1 || null,
-            address?.line2 || null,
+            address?.line2 || null, // Często puste, musi być jawnie null
             address?.city || null,
             address?.postal_code || null,
             address?.country || null,
@@ -83,17 +83,22 @@ app.post(
           ]
         );
 
-        console.log("Rows updated:", result.rowCount);
+        if (result.rowCount === 0) {
+          console.error("⚠️ No order found with session_id:", session.id);
+        } else {
+          console.log("✅ Order updated to paid:", result.rows[0].id);
+        }
 
+        // Czyszczenie koszyka
         const userId = session.metadata?.userId;
         if (userId) {
           await pool.query(`DELETE FROM basket WHERE user_id = $1`, [userId]);
           console.log(`Basket cleared for user: ${userId}`);
         }
       } catch (err) {
-        console.error("❌ Database error during webhook:", err);
-        // Jeśli baza padnie, zwracamy 500, żeby Stripe spróbował ponownie później
-        return res.status(500).send("Database Error");
+        console.error("❌ CRITICAL DATABASE ERROR:", err.message);
+        // Zwracamy 500 z treścią błędu SQL, żebyś widział go w panelu Stripe
+        return res.status(500).send(`DB Error: ${err.message}`);
       }
     }
 
